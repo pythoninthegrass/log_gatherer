@@ -1,20 +1,20 @@
 #!/bin/bash
 #######################################################################################
-### v1.3 Written by Matt Taylor 19/03/19 											###
-### This script automates the compression and upload of specified log files         ###
-### to a device's inventory record in Jamf Pro as an attachment for troubleshooting ###
-### purposes.  This script is designed to be run as a Self Service Policy.          ###
-### 																				###
-### Recommended to use a Jamf Pro user account with only the following permissions: ###
-### Computers: Create, Read                                                         ###
-###                                                                                 ###
-### Specify the Jamf Pro user account username as Parameter 4 and the password      ###
-### as Parameter 5 inside the Script payload of the Policy.  More information here: ###
-### https://www.jamf.com/jamf-nation/articles/461/secure-scripts                    ###
-### 																				###
-### We *strongly* recommend removing all uploaded attachments from inventory records###
-### immediately afterwards to prevent unnecessary database size increase.           ###
-###																					###
+### v1.3 Written by Matt Taylor 19/03/19
+### This script automates the compression and upload of specified log files
+### to a device's inventory record in Jamf Pro as an attachment for troubleshooting
+### purposes.  This script is designed to be run as a Self Service Policy.
+###
+### Recommended to use a Jamf Pro user account with only the following permissions:
+### Computers: Create, Read
+###
+### Specify the Jamf Pro user account username as Parameter 4 and the password
+### as Parameter 5 inside the Script payload of the Policy.  More information here:
+### https://www.jamf.com/jamf-nation/articles/461/secure-scripts
+###
+### We *strongly* recommend removing all uploaded attachments from inventory records
+### immediately afterwards to prevent unnecessary database size increase.
+###
 #######################################################################################
 
 ## Declare variables ##
