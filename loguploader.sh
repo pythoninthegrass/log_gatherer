@@ -1,5 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
 #######################################################################################
+### OG SOURCE - edited by /u/pythoninthegrass Jan 2020
+#######################################################################################
+###
 ### v1.3 Written by Matt Taylor 19/03/19
 ### This script automates the compression and upload of specified log files
 ### to a device's inventory record in Jamf Pro as an attachment for troubleshooting
@@ -17,70 +21,87 @@
 ###
 #######################################################################################
 
-## Declare variables ##
-#Check if a parameter was set for parameter 4 and, if so, assign it to "apiUsername"
-if [ "$4" != "" ] && [ "$apiUsername" == "" ]; then
-apiUsername=$4
+# activate verbose standard output (stdout)
+set -v
+# activate debugging (execution shown)
+set -x
+
+# Current user
+logged_in_user=$(logname) # posix alternative to /dev/console
+
+# Working directory
+# script_dir=$(cd "$(dirname "$0")" && pwd)
+
+# Set $IFS to eliminate whitespace in pathnames
+IFS="$(printf '\n\t')"
+
+#Check if a parameter was set for parameter 4 and, if so, assign it to "api_username"
+if [[ "$4" != "" ]] && [[ "$api_username" == "" ]]; then
+    api_username=$4
 fi
 
-#Check if a parameter was set for parameter 5 and, if so, assign it to "apiPassword"
-if [ "$5" != "" ] && [ "$apiPassword" == "" ]; then
-apiPassword=$5
+#Check if a parameter was set for parameter 5 and, if so, assign it to "api_password"
+if [[ "$5" != "" ]] && [[ "$api_password" == "" ]]; then
+    api_password=$5
 fi
 
 # Create an authentication token for the API Jamf Pro account.
-token=$(printf "$apiUsername:$apiPassword" | iconv -t ISO-8859-1 | base64 -i -)
+token=$(printf "$api_username:$api_password" | iconv -t ISO-8859-1 | base64 -i -)
 
 # Pull the Jamf Pro URL from the management framework.
-jpsURL=$(defaults read /Library/Preferences/com.jamfsoftware.jamf.plist jss_url)
+jss_url=$(defaults read /Library/Preferences/com.jamfsoftware.jamf.plist jss_url)
 
 # Find the device serial number.
-serialNumber=$(system_profiler SPHardwareDataType | awk '/Serial/ {print $4}')
+serial_number=$(system_profiler SPHardwareDataType | awk '/Serial/ {print $4}')
 
 # Specify the log files being requested.
-jamfLog="/var/log/jamf.log"
-installLog="/var/log/install.log"
-systemLog="/var/log/system.log"
+jamf_log="/var/log/jamf.log"
+install_log="/var/log/install.log"
+sys_log="/var/log/system.log"
+ss_log="/Users/$logged_in_user/Library/Logs/JAMF/selfservice.log"
 
 # Specify a save location and time stamp.
-timeStamp=$(date +%Y%m%d_%H%M)
-logArchive="/var/tmp/${timeStamp}_logs.zip"
+time_stamp=$(date +%Y%m%d_%H%M)
+log_archive="/var/tmp/${time_stamp}_logs.zip"
 
 # Specify a file size limit in bytes that we want to upload.  The default is ~5mb.
-byteSize="5000"
+byte_size="5000"
 
-###################################
-### DO NOT EDIT BELOW THIS LINE ###
-###################################
 ## Compress the log files we're uploading and name it with a timestamp.
-/usr/bin/zip -r $logArchive $jamfLog $installLog $systemLog
+zip -r $log_archive $jamf_log $install_log $sys_log $ss_log
 
 ### Check the file size of the archive prior to upload.  If it's larger than 15mb, fail out and advise the user to contact IT.
-fileSize=$(/usr/bin/du -k $logArchive | cut -f1)
-if [[ $fileSize -gt $byteSize ]]; then
-/Library/Application\ Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper -windowType hud -description "The log files are too large to upload, please contact IT for further assistance." -icon /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertCautionIcon.icns -button1 "Close" &
-/bin/echo "The log archive was larger than the specified limit, as such the upload has been aborted."
-exit 1
+file_size=$(du -k $log_archive | cut -f1)
+if [[ $file_size -gt $byte_size ]]; then
+    /Library/Application\ Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper -windowType hud -description "The log files are too large to upload, please contact IT for further assistance." -icon /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertCautionIcon.icns -button1 "Close" &
+    echo "The log archive was larger than the specified limit, as such the upload has been aborted."
+    exit 1
 fi
 
 ## Pull the Jamf Pro computer ID using the serial number.
-id=$(/usr/bin/curl -H "Accept: text/xml" -H "authorization: Basic $token" -S "$jpsURL"JSSResource/computers/serialnumber/$serialNumber -X GET | xpath '/computer/general/id/text()')
+id=$(curl -H "Accept: text/xml" -H "authorization: Basic $token" -S "$jss_url"JSSResource/computers/serialnumber/$serial_number -X GET | xpath '/computer/general/id/text()')
 
 ## Upload the log files to the device inventory record.
-http_code=$(/usr/bin/curl -H "authorization: Basic $token" -S "$jpsURL"JSSResource/fileuploads/computers/id/$id -X POST -F name=@$logArchive)
+http_code=$(/usr/bin/curl -H "authorization: Basic $token" -S "$jss_url"JSSResource/fileuploads/computers/id/$id -X POST -F name=@$log_archive)
 
 ## Report on the status code of the curl and throw a jamfHelper window with information.
 if [[ "$http_code" -le 200 ]]; then
-/Library/Application\ Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper -windowType hud -description "Your logs have been successfully uploaded, IT will contact you shortly to assist further." -icon "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/FinderIcon.icns" -button1 "Close" &
+    /Library/Application\ Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper -windowType hud -description "Your logs have been successfully uploaded, IT will contact you shortly to assist further." -icon "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/FinderIcon.icns" -button1 "Close" &
 else
-/Library/Application\ Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper -windowType hud -description "There was a problem completing the upload, IT will contact you shortly to assist further." -icon "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertCautionIcon.icns" -button1 "Close" &
-exit 1
+    /Library/Application\ Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper -windowType hud -description "There was a problem completing the upload, IT will contact you shortly to assist further." -icon "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertCautionIcon.icns" -button1 "Close" &
+    exit 1
 fi
 
 ## Cleanup the log archive created.
-if [[ -f $logArchive ]]; then
-/bin/rm $logArchive
+if [[ -f $log_archive ]]; then
+    rm -rf $log_archive
 fi
+
+# deactivate verbose and debugging stdout
+set +v
+set +x
+
+unset IFS
 
 ## Exit gracefully.
 exit 0
